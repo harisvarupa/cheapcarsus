@@ -54,12 +54,12 @@ Analyze the image and return only valid JSON with this shape:
   "condition": "Good",
   "engine": "2.5L I4",
   "mpg": "28 city / 39 highway",
-  "vin": "1HGCM82633A004352",
+  "vin": "",
   "pills": ["Clean title", "Daily driver"],
   "features": ["Backup camera", "Bluetooth"],
   "description": "Short honest seller note."
 }
-Never return null, unknown, N/A, or empty strings. If an exact value cannot be inferred from the image, make a realistic assumption for a used-car listing. VIN can be a clearly placeholder but valid-looking 17-character VIN. Price and mileage should be conservative estimates if unknown. Condition must be one of Excellent, Good, Fair, Project, Mechanic Special. Fuel type must be Gasoline, Hybrid, Electric, Diesel, or Plug-in Hybrid.`,
+Never return null, unknown, or N/A. If an exact value cannot be inferred from the image, make a realistic assumption for a used-car listing. The only field that may be an empty string is vin; leave vin empty unless the exact VIN is visible. Price and mileage should be conservative estimates if unknown. Condition must be one of Excellent, Good, Fair, Project, Mechanic Special. Fuel type must be Gasoline, Hybrid, Electric, Diesel, or Plug-in Hybrid.`,
     ]);
 
     const text = result.response.text();

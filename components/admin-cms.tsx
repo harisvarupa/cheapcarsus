@@ -1,10 +1,11 @@
 "use client";
 
-import { Loader2, LockKeyhole, Sparkles, UploadCloud } from "lucide-react";
+import { Loader2, LockKeyhole, Pencil, Sparkles, Trash2, UploadCloud } from "lucide-react";
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CustomSelect } from "@/components/custom-select";
-import type { CarCondition, FuelType, GeminiCarSuggestion } from "@/lib/types";
+import type { Car, CarCondition, FuelType, GeminiCarSuggestion } from "@/lib/types";
+import { currency, number } from "@/lib/utils";
 
 const fuelOptions: FuelType[] = ["Gasoline", "Hybrid", "Electric", "Diesel", "Plug-in Hybrid"];
 const conditionOptions: CarCondition[] = ["Excellent", "Good", "Fair", "Project", "Mechanic Special"];
@@ -56,6 +57,13 @@ type FormState = {
   sold: boolean;
 };
 
+type UploadedImage = {
+  data: string;
+  mimeType: string;
+  name: string;
+  preview: string;
+};
+
 const initialForm: FormState = {
   title: "",
   year: "",
@@ -84,10 +92,12 @@ const initialForm: FormState = {
 export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string }) {
   const [adminKey, setAdminKey] = useState(initialAdminKey);
   const [form, setForm] = useState<FormState>(initialForm);
-  const [imageData, setImageData] = useState("");
-  const [imageMimeType, setImageMimeType] = useState("");
-  const [imageName, setImageName] = useState("");
-  const [preview, setPreview] = useState("");
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [cars, setCars] = useState<Car[]>([]);
+  const [editingCarId, setEditingCarId] = useState("");
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [deletingCarId, setDeletingCarId] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState<"analyze" | "save" | "">("");
   const [geminiCooldownUntil, setGeminiCooldownUntil] = useState(() => getStoredCooldownUntil());
@@ -111,6 +121,28 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const loadCars = useCallback(async () => {
+    if (!adminKey) {
+      return;
+    }
+
+    setInventoryLoading(true);
+    const response = await fetch("/api/cars", {
+      headers: {
+        "x-admin-key": adminKey,
+      },
+    });
+    const result = await readJsonResponse<{ cars?: Car[]; error?: string }>(response);
+    setInventoryLoading(false);
+
+    if (!response.ok || !result.cars) {
+      setStatus(result.error || "Unable to load current inventory.");
+      return;
+    }
+
+    setCars(result.cars);
+  }, [adminKey]);
+
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       const storedCooldown = getStoredCooldownUntil();
@@ -123,6 +155,14 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
 
     return () => window.clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void loadCars();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadCars]);
 
   useEffect(() => {
     if (!geminiCooldownUntil) {
@@ -145,16 +185,9 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
     return () => window.clearInterval(interval);
   }, [geminiCooldownUntil]);
 
-  const handleImage = async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result);
-      setPreview(result);
-      setImageData(result.split(",")[1] || "");
-      setImageMimeType(file.type);
-      setImageName(file.name);
-    };
-    reader.readAsDataURL(file);
+  const handleImages = async (files: FileList) => {
+    const images = await Promise.all(Array.from(files).map(readUploadedImage));
+    setUploadedImages((current) => [...current, ...images]);
   };
 
   const applySuggestion = (suggestion: GeminiCarSuggestion) => {
@@ -174,7 +207,7 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
       bodyType: textOr(suggestion.bodyType, current.bodyType) || "Sedan",
       exteriorColor: textOr(suggestion.exteriorColor, current.exteriorColor) || "Black",
       interiorColor: textOr(suggestion.interiorColor, current.interiorColor) || "Black",
-      vin: textOr(suggestion.vin, current.vin) || assumedVin(suggestion, current),
+      vin: textOr(suggestion.vin, current.vin),
       condition: textOr(suggestion.condition, current.condition) || "Good",
       engine: textOr(suggestion.engine, current.engine) || assumedEngine(suggestion, current),
       mpg: textOr(suggestion.mpg, current.mpg) || assumedMpg(suggestion, current),
@@ -210,7 +243,9 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
       return;
     }
 
-    if (!imageData || !imageMimeType) {
+    const primaryImage = uploadedImages[0];
+
+    if (!primaryImage) {
       setStatus("Upload a vehicle image first.");
       return;
     }
@@ -227,7 +262,10 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
           "Content-Type": "application/json",
           "x-admin-key": adminKey,
         },
-        body: JSON.stringify({ imageData, imageMimeType }),
+        body: JSON.stringify({
+          imageData: primaryImage.data,
+          imageMimeType: primaryImage.mimeType,
+        }),
       });
     } catch {
       analyzeInFlight.current = false;
@@ -262,10 +300,58 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
     setStatus("Autofill complete. Review the details before saving.");
   };
 
+  const resetEditor = () => {
+    setForm(initialForm);
+    setUploadedImages([]);
+    setExistingImages([]);
+    setEditingCarId("");
+  };
+
+  const editCar = (car: Car) => {
+    setForm(carToForm(car));
+    setExistingImages(car.images);
+    setUploadedImages([]);
+    setEditingCarId(car.id);
+    setStatus(`Editing ${car.title}. Save changes when ready.`);
+  };
+
+  const removeExistingImage = (image: string) => {
+    setExistingImages((current) => current.filter((currentImage) => currentImage !== image));
+  };
+
+  const deleteCar = async (car: Car) => {
+    if (!window.confirm(`Remove ${car.title} from the site? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingCarId(car.id);
+    setStatus(`Removing ${car.title}...`);
+
+    const response = await fetch(`/api/cars/${car.id}`, {
+      method: "DELETE",
+      headers: {
+        "x-admin-key": adminKey,
+      },
+    });
+    const result = await readJsonResponse<{ ok?: boolean; error?: string }>(response);
+    setDeletingCarId("");
+
+    if (!response.ok || !result.ok) {
+      setStatus(result.error || "Unable to remove vehicle.");
+      return;
+    }
+
+    setCars((current) => current.filter((item) => item.id !== car.id));
+    if (editingCarId === car.id) {
+      resetEditor();
+    }
+    setStatus(`${car.title} was removed from the site.`);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusy("save");
-    setStatus("Saving vehicle to Supabase...");
+    setStatus(editingCarId ? "Updating vehicle in Supabase..." : "Saving vehicle to Supabase...");
 
     const payload = {
       ...form,
@@ -274,13 +360,16 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
       mileage: Number(form.mileage),
       pills: splitList(form.pills),
       features: splitList(form.features),
-      imageData,
-      imageName,
-      imageMimeType,
+      imageUploads: uploadedImages.map((image) => ({
+        data: image.data,
+        mimeType: image.mimeType,
+        name: image.name,
+      })),
+      images: existingImages,
     };
 
-    const response = await fetch("/api/cars", {
-      method: "POST",
+    const response = await fetch(editingCarId ? `/api/cars/${editingCarId}` : "/api/cars", {
+      method: editingCarId ? "PATCH" : "POST",
       headers: {
         "Content-Type": "application/json",
         "x-admin-key": adminKey,
@@ -288,7 +377,7 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
       body: JSON.stringify(payload),
     });
 
-    const result = await readJsonResponse<{ error?: string; car?: { title: string } }>(response);
+    const result = await readJsonResponse<{ error?: string; car?: Car }>(response);
     setBusy("");
 
     if (!response.ok) {
@@ -296,13 +385,21 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
       return;
     }
 
-    setForm(initialForm);
-    setImageData("");
-    setImageMimeType("");
-    setImageName("");
-    setPreview("");
-    setStatus(`${result.car?.title || "Vehicle"} was saved. Refresh inventory to see it live.`);
+    const savedCar = result.car;
+    if (savedCar) {
+      setCars((current) =>
+        editingCarId
+          ? current.map((car) => (car.id === savedCar.id ? savedCar : car))
+          : [savedCar, ...current],
+      );
+    }
+
+    resetEditor();
+    setStatus(`${savedCar?.title || "Vehicle"} was ${editingCarId ? "updated" : "saved"}.`);
   };
+
+  const primaryPreview = uploadedImages[0]?.preview || existingImages[0] || "";
+  const isEditing = Boolean(editingCarId);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -310,12 +407,114 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
         <span className="inline-flex items-center gap-2 rounded-full bg-orange-500 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-slate-950">
           <LockKeyhole size={15} /> Private inventory tools
         </span>
-        <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">Add inventory fast.</h1>
+        <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">Manage inventory fast.</h1>
         <p className="mt-3 max-w-3xl text-slate-300">
-          Enter the admin key, upload a car photo, optionally let Gemini draft the listing, then
-          save the vehicle and images into Supabase.
+          Add new cars, edit current listings, remove vehicles from the site, and use Gemini to
+          draft listing details from the first newly uploaded image.
         </p>
       </div>
+
+      <section className="mb-8 rounded-[2rem] bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-slate-950">Current inventory</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-500">
+              {inventoryLoading ? "Loading cars..." : `${cars.length} car${cars.length === 1 ? "" : "s"} in Supabase`}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void loadCars()}
+              disabled={inventoryLoading}
+              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-700 transition hover:border-orange-300 hover:text-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {inventoryLoading ? "Refreshing..." : "Refresh"}
+            </button>
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={resetEditor}
+                className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800"
+              >
+                Add new car
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {cars.length ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {cars.map((car) => (
+              <div
+                key={car.id}
+                className={`overflow-hidden rounded-[1.5rem] border bg-white shadow-sm transition ${
+                  editingCarId === car.id ? "border-orange-400 ring-4 ring-orange-100" : "border-slate-200"
+                }`}
+              >
+                <div className="flex gap-4 p-4">
+                  <Image
+                    src={car.images[0]}
+                    alt={car.title}
+                    width={140}
+                    height={105}
+                    className="h-24 w-32 rounded-2xl object-cover"
+                    unoptimized
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="line-clamp-2 font-black text-slate-950">{car.title}</h3>
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white ${
+                          car.sold ? "bg-red-600" : "bg-emerald-500"
+                        }`}
+                      >
+                        {car.sold ? "Sold" : "Live"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm font-bold text-slate-500">
+                      {currency(car.price)} | {number(car.mileage)} mi
+                    </p>
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                      {car.images.length} image{car.images.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 border-t border-slate-100 text-sm font-black">
+                  <button
+                    type="button"
+                    onClick={() => editCar(car)}
+                    className="flex items-center justify-center gap-2 px-3 py-3 text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"
+                  >
+                    <Pencil size={15} /> Edit
+                  </button>
+                  <a
+                    href={`/cars/${car.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-center px-3 py-3 text-slate-700 transition hover:bg-slate-50"
+                  >
+                    View
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => void deleteCar(car)}
+                    disabled={deletingCarId === car.id}
+                    className="flex items-center justify-center gap-2 px-3 py-3 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {deletingCarId === car.id ? <Loader2 className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm font-semibold text-slate-500">
+            {inventoryLoading ? "Loading current cars..." : "No cars found yet."}
+          </div>
+        )}
+      </section>
 
       <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="glass-panel rounded-[2rem] p-6">
@@ -340,10 +539,10 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
           )}
 
           <label className="mt-6 flex min-h-72 cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border-2 border-dashed border-orange-200 bg-orange-50/60 p-6 text-center transition hover:border-orange-400 hover:bg-orange-50">
-            {preview ? (
+            {primaryPreview ? (
               <Image
-                src={preview}
-                alt="Vehicle preview"
+                src={primaryPreview}
+                alt="Primary vehicle preview"
                 width={640}
                 height={420}
                 className="max-h-72 rounded-2xl object-cover shadow-lg"
@@ -352,20 +551,86 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
             ) : (
               <>
                 <UploadCloud className="mb-4 text-orange-500" size={42} />
-                <span className="text-lg font-black text-slate-950">Upload vehicle image</span>
-                <span className="mt-2 text-sm text-slate-600">JPG, PNG, or WebP. Used for listing and Gemini autofill.</span>
+                <span className="text-lg font-black text-slate-950">Upload vehicle images</span>
+                <span className="mt-2 text-sm text-slate-600">
+                  JPG, PNG, or WebP. The first image is used for Gemini autofill.
+                </span>
               </>
             )}
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
+              multiple
               className="sr-only"
               onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void handleImage(file);
+                if (event.target.files?.length) void handleImages(event.target.files);
+                event.target.value = "";
               }}
             />
           </label>
+
+          {existingImages.length ? (
+            <div className="mt-4">
+              <p className="text-sm font-black text-slate-700">
+                Current listing images ({existingImages.length})
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                {existingImages.map((image, index) => (
+                  <div key={`${image}-${index}`} className="relative overflow-hidden rounded-2xl bg-slate-100">
+                    <Image
+                      src={image}
+                      alt={`Current vehicle image ${index + 1}`}
+                      width={220}
+                      height={160}
+                      className="h-24 w-full object-cover"
+                      unoptimized
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExistingImage(image)}
+                      className="absolute right-2 top-2 rounded-full bg-red-600 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {uploadedImages.length ? (
+            <div className="mt-4">
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-sm font-black text-slate-700">
+                  {uploadedImages.length} new image{uploadedImages.length === 1 ? "" : "s"} selected
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setUploadedImages([])}
+                  className="text-sm font-black text-red-600 hover:text-red-700"
+                >
+                  Clear images
+                </button>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                {uploadedImages.map((image, index) => (
+                  <div key={`${image.name}-${index}`} className="relative overflow-hidden rounded-2xl bg-slate-100">
+                    <Image
+                      src={image.preview}
+                      alt={`${image.name} preview`}
+                      width={220}
+                      height={160}
+                      className="h-24 w-full object-cover"
+                      unoptimized
+                    />
+                    <span className="absolute left-2 top-2 rounded-full bg-slate-950/80 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                      {index === 0 ? "Gemini" : index + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <button
             type="button"
@@ -385,6 +650,27 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
         </div>
 
         <div className="glass-panel rounded-[2rem] p-6">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-950">
+                {isEditing ? "Edit car listing" : "Add new car"}
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                {isEditing
+                  ? "Update fields, remove current images, or add new images."
+                  : "Fill the fields below and save the car to Supabase."}
+              </p>
+            </div>
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={resetEditor}
+                className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 transition hover:border-orange-300 hover:text-orange-700"
+              >
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField label="Title" value={form.title} onChange={(value) => setField("title", value)} required />
             <TextField label="Location" value={form.location} onChange={(value) => setField("location", value)} required />
@@ -494,7 +780,7 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
               className="flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-8 py-4 font-black text-white shadow-lg shadow-orange-500/25 transition hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy === "save" ? <Loader2 className="animate-spin" size={18} /> : null}
-              Save car
+              {isEditing ? "Update car" : "Save car"}
             </button>
           </div>
         </div>
@@ -539,6 +825,33 @@ function splitList(value: string) {
     .filter(Boolean);
 }
 
+function carToForm(car: Car): FormState {
+  return {
+    title: car.title,
+    year: String(car.year),
+    make: car.make,
+    model: car.model,
+    trim: car.trim,
+    price: String(car.price),
+    mileage: String(car.mileage),
+    location: car.location,
+    transmission: car.transmission,
+    drivetrain: car.drivetrain,
+    fuelType: car.fuelType,
+    bodyType: car.bodyType,
+    exteriorColor: car.exteriorColor,
+    interiorColor: car.interiorColor,
+    vin: car.vin,
+    condition: car.condition,
+    engine: car.engine,
+    mpg: car.mpg,
+    pills: car.pills.join(", "),
+    features: car.features.join(", "),
+    description: car.description,
+    sold: car.sold,
+  };
+}
+
 function appendListValue(current: string, next: string) {
   const values = splitList(current);
   return values.includes(next) ? current : [...values, next].join(", ");
@@ -546,6 +859,25 @@ function appendListValue(current: string, next: string) {
 
 function digits(value: string) {
   return value.replace(/\D/g, "");
+}
+
+function readUploadedImage(file: File): Promise<UploadedImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const preview = String(reader.result);
+      resolve({
+        data: preview.split(",")[1] || "",
+        mimeType: file.type,
+        name: file.name,
+        preview,
+      });
+    };
+
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+    reader.readAsDataURL(file);
+  });
 }
 
 function textOr(value: unknown, fallback: string) {
@@ -598,13 +930,6 @@ function assumedMpg(suggestion: GeminiCarSuggestion, current: FormState) {
   if (bodyType === "SUV") return "22 city / 29 highway";
 
   return "28 city / 36 highway";
-}
-
-function assumedVin(suggestion: GeminiCarSuggestion, current: FormState) {
-  const title = assumedTitle(suggestion, current).replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  const seed = `${title}CHEAPCARSUS2026`.padEnd(17, "0");
-
-  return seed.slice(0, 17).replace(/[IOQ]/g, "X");
 }
 
 async function readJsonResponse<T extends { error?: string }>(response: Response): Promise<T> {

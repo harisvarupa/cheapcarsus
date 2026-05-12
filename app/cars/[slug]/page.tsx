@@ -1,8 +1,8 @@
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowLeft, BadgeCheck, Calendar, Fuel, Gauge, MapPin, Settings, Wrench } from "lucide-react";
 import { CarCard } from "@/components/car-card";
+import { CarImageGallery } from "@/components/car-image-gallery";
 import { DEFAULT_CAR_IMAGE } from "@/lib/car-images";
 import { getCarBySlug, getCars } from "@/lib/cars";
 import { currency, number } from "@/lib/utils";
@@ -35,7 +35,7 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
   const related = cars
     .filter((item) => item.id !== car.id && (item.make === car.make || item.bodyType === car.bodyType))
     .slice(0, 3);
-  const heroImage = car.images[0] || DEFAULT_CAR_IMAGE;
+  const galleryImages = car.images.length ? car.images : [DEFAULT_CAR_IMAGE];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -43,41 +43,37 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
         <ArrowLeft size={18} /> Back to inventory
       </Link>
 
-      <section className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr]">
-        <div>
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-200 shadow-2xl shadow-slate-900/12">
-            <Image
-              src={heroImage}
-              alt={car.title}
-              width={1200}
-              height={800}
-              className="h-[520px] w-full object-cover"
-              priority
-              unoptimized
-            />
-            {car.sold ? (
-              <div className="absolute left-6 top-6 rounded-full bg-red-600 px-5 py-3 text-sm font-black uppercase tracking-[0.18em] text-white">
-                Sold
-              </div>
-            ) : null}
-          </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {car.images.slice(1).map((image) => (
-              <Image
-                key={image}
-                src={image}
-                alt={`${car.title} detail`}
-                width={600}
-                height={400}
-                className="h-56 w-full rounded-[1.75rem] object-cover shadow-sm"
-                unoptimized
-              />
-            ))}
-          </div>
+      <section className="mb-6 rounded-[2rem] bg-white/90 p-5 shadow-lg shadow-slate-900/8 ring-1 ring-slate-900/5 lg:hidden">
+        <div className="flex flex-wrap gap-2">
+          {car.pills.map((pill) => (
+            <span
+              key={pill}
+              className="rounded-full bg-orange-100 px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-orange-700"
+            >
+              {pill}
+            </span>
+          ))}
         </div>
+        <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950">{car.title}</h1>
+        <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+          <MapPin size={16} /> {car.location}
+        </p>
+        <div className="mt-5 flex items-center justify-between gap-4 rounded-3xl bg-slate-950 p-5 text-white">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Asking price</p>
+            <p className="mt-1 text-3xl font-black text-orange-300">{currency(car.price)}</p>
+          </div>
+          <span className={`rounded-full px-4 py-2 text-sm font-black ${car.sold ? "bg-red-600" : "bg-emerald-500"}`}>
+            {car.sold ? "Sold" : "Available"}
+          </span>
+        </div>
+      </section>
+
+      <section className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr]">
+        <CarImageGallery images={galleryImages} title={car.title} sold={car.sold} />
 
         <div className="glass-panel h-fit rounded-[2.5rem] p-6 sm:p-8">
-          <div className="flex flex-wrap gap-2">
+          <div className="hidden flex-wrap gap-2 lg:flex">
             {car.pills.map((pill) => (
               <span
                 key={pill}
@@ -87,11 +83,11 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
               </span>
             ))}
           </div>
-          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">{car.title}</h1>
-          <p className="mt-3 inline-flex items-center gap-2 text-slate-600">
+          <h1 className="mt-5 hidden text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:block">{car.title}</h1>
+          <p className="mt-3 hidden items-center gap-2 text-slate-600 lg:inline-flex">
             <MapPin size={18} /> {car.location}
           </p>
-          <div className="mt-6 flex items-end justify-between gap-5 rounded-[2rem] bg-slate-950 p-6 text-white">
+          <div className="mt-6 hidden items-end justify-between gap-5 rounded-[2rem] bg-slate-950 p-6 text-white lg:flex">
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-400">Asking price</p>
               <p className="mt-2 text-4xl font-black text-orange-300">{currency(car.price)}</p>
@@ -152,12 +148,14 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
 
 function Spec({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-orange-700">
+    <div className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm sm:block">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700 sm:mb-3">
         {icon}
       </div>
-      <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <p className="mt-1 font-black text-slate-900">{value}</p>
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{label}</p>
+        <p className="mt-1 font-black text-slate-900">{value}</p>
+      </div>
     </div>
   );
 }

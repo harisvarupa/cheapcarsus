@@ -11,7 +11,7 @@ export function CarCard({ car }: { car: Car }) {
   return (
     <Link
       href={`/cars/${car.slug}`}
-      className="group fade-in relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-900/12"
+      className="group fade-in relative overflow-hidden rounded-3xl border border-white bg-white/95 shadow-[0_22px_60px_rgba(15,23,42,0.14)] ring-1 ring-slate-900/5 transition duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_30px_90px_rgba(15,23,42,0.22)]"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-slate-200">
         <Image

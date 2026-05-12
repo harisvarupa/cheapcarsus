@@ -39,6 +39,11 @@ export type CarPayload = Omit<Car, "id" | "slug" | "createdAt" | "images"> & {
   imageData?: string;
   imageName?: string;
   imageMimeType?: string;
+  imageUploads?: {
+    data: string;
+    mimeType: string;
+    name?: string;
+  }[];
 };
 
 export function rowToCar(row: CarRow): Car {

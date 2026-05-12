@@ -8,7 +8,7 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.3fr_0.8fr_0.8fr_0.8fr] lg:px-8">
         <div>
           <div className="mb-5 flex items-center gap-3">
-            <BrandLogo inverted markClassName="h-11 w-11 bg-white/10" />
+            <BrandLogo inverted markClassName="h-14 w-52" />
           </div>
           <p className="max-w-sm text-sm leading-6 text-slate-300">
             Affordable used cars with transparent condition tags and clear listing updates.

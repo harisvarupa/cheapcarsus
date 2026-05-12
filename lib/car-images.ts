@@ -56,7 +56,7 @@ const heroImage = (id: string, width = 1200, height = 1100) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&h=${height}&q=80`;
 
 export const DEFAULT_CAR_IMAGE = vehicleImages.camry[0];
-export const HERO_DEALERSHIP_IMAGE = heroImage("photo-1565043589221-1a6fd9ae45c7");
+export const HERO_DEALERSHIP_IMAGE = heroImage("photo-1492144534655-ae79c964c9d7");
 
 export function carImage(query: string, variant = 0) {
   const normalized = normalizeVehicleQuery(query);
