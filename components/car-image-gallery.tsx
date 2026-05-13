@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export function CarImageGallery({
   images,
@@ -14,6 +14,7 @@ export function CarImageGallery({
   sold: boolean;
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const currentImage = images[selectedIndex] || images[0];
   const hasMultipleImages = images.length > 1;
 
@@ -25,9 +26,44 @@ export function CarImageGallery({
     setSelectedIndex((current) => (current === images.length - 1 ? 0 : current + 1));
   };
 
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!hasMultipleImages) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStart.current || !hasMultipleImages) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStart.current.x;
+    const deltaY = touch.clientY - touchStart.current.y;
+    touchStart.current = null;
+
+    if (Math.abs(deltaX) < 45 || Math.abs(deltaX) < Math.abs(deltaY)) {
+      return;
+    }
+
+    if (deltaX > 0) {
+      showPreviousImage();
+      return;
+    }
+
+    showNextImage();
+  };
+
   return (
     <div>
-      <div className="relative aspect-square overflow-hidden rounded-[2rem] bg-slate-200 shadow-2xl shadow-slate-900/12 sm:rounded-[2.5rem] lg:aspect-auto">
+      <div
+        className="relative aspect-[4/3] overflow-hidden bg-slate-200 shadow-2xl shadow-slate-900/12 sm:aspect-square sm:rounded-[2.5rem] lg:aspect-auto"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <Image
           src={currentImage}
           alt={`${title} image ${selectedIndex + 1}`}
@@ -62,7 +98,7 @@ export function CarImageGallery({
             >
               <ChevronRight size={24} />
             </button>
-            <div className="absolute bottom-5 right-5 rounded-full bg-slate-950/80 px-4 py-2 text-sm font-black text-white backdrop-blur">
+            <div className="absolute bottom-4 right-4 rounded-full bg-slate-950/75 px-4 py-2 text-sm font-black text-white backdrop-blur">
               {selectedIndex + 1} / {images.length}
             </div>
           </>
@@ -70,7 +106,7 @@ export function CarImageGallery({
       </div>
 
       {hasMultipleImages ? (
-        <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
+        <div className="mt-4 hidden grid-cols-3 gap-3 sm:grid sm:grid-cols-4">
           {images.map((image, index) => (
             <button
               key={`${image}-${index}`}

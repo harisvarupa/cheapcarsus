@@ -60,6 +60,7 @@ export type GeminiCarSuggestion = Partial<
     | "trim"
     | "price"
     | "mileage"
+    | "location"
     | "transmission"
     | "drivetrain"
     | "fuelType"

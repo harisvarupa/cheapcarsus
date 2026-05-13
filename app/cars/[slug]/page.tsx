@@ -38,41 +38,38 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
   const galleryImages = car.images.length ? car.images : [DEFAULT_CAR_IMAGE];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <Link href="/cars" className="mb-6 inline-flex items-center gap-2 font-black text-slate-600 hover:text-orange-700">
+    <div className="mx-auto max-w-7xl px-0 py-0 sm:px-6 sm:py-10 lg:px-8">
+      <Link href="/cars" className="mx-4 my-4 inline-flex items-center gap-2 font-black text-slate-600 hover:text-orange-700 sm:mx-0 sm:mb-6 sm:mt-0">
         <ArrowLeft size={18} /> Back to inventory
       </Link>
 
-      <section className="mb-6 rounded-[2rem] bg-white/90 p-5 shadow-lg shadow-slate-900/8 ring-1 ring-slate-900/5 lg:hidden">
-        <div className="flex flex-wrap gap-2">
-          {car.pills.map((pill) => (
-            <span
-              key={pill}
-              className="rounded-full bg-orange-100 px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-orange-700"
-            >
-              {pill}
-            </span>
-          ))}
-        </div>
-        <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950">{car.title}</h1>
-        <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
-          <MapPin size={16} /> {car.location}
-        </p>
-        <div className="mt-5 flex items-center justify-between gap-4 rounded-3xl bg-slate-950 p-5 text-white">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Asking price</p>
-            <p className="mt-1 text-3xl font-black text-orange-300">{currency(car.price)}</p>
-          </div>
-          <span className={`rounded-full px-4 py-2 text-sm font-black ${car.sold ? "bg-red-600" : "bg-emerald-500"}`}>
-            {car.sold ? "Sold" : "Available"}
-          </span>
-        </div>
-      </section>
-
-      <section className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr]">
+      <section className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr] lg:gap-8">
         <CarImageGallery images={galleryImages} title={car.title} sold={car.sold} />
 
-        <div className="glass-panel h-fit rounded-[2.5rem] p-6 sm:p-8">
+        <div className="glass-panel h-fit rounded-none p-5 sm:rounded-[2.5rem] sm:p-8">
+          <div className="lg:hidden">
+            <h1 className="text-3xl font-black tracking-tight text-slate-950">{car.title}</h1>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <p className="text-3xl font-black text-orange-600">{currency(car.price)}</p>
+              <span className={`rounded-full px-3 py-1.5 text-xs font-black ${car.sold ? "bg-red-600 text-white" : "bg-emerald-500 text-white"}`}>
+                {car.sold ? "Sold" : "Available"}
+              </span>
+            </div>
+            <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-500">
+              <MapPin size={16} /> {car.location}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {car.pills.map((pill) => (
+                <span
+                  key={pill}
+                  className="rounded-full bg-orange-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-orange-700"
+                >
+                  {pill}
+                </span>
+              ))}
+            </div>
+          </div>
+
           <div className="hidden flex-wrap gap-2 lg:flex">
             {car.pills.map((pill) => (
               <span
@@ -97,7 +94,7 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
             </span>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:mt-6 sm:gap-3">
             <Spec icon={<Calendar />} label="Year" value={String(car.year)} />
             <Spec icon={<Gauge />} label="Mileage" value={`${number(car.mileage)} mi`} />
             <Spec icon={<Fuel />} label="Fuel" value={car.fuelType} />
@@ -106,12 +103,12 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
             <Spec icon={<BadgeCheck />} label="Condition" value={car.condition} />
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6 sm:mt-8">
             <h2 className="text-xl font-black text-slate-950">Seller notes</h2>
-            <p className="mt-3 leading-8 text-slate-600">{car.description}</p>
+            <p className="mt-3 leading-7 text-slate-600 sm:leading-8">{car.description}</p>
           </div>
 
-          <div className="mt-8 grid gap-3 rounded-[2rem] bg-white p-5 shadow-sm">
+          <div className="mt-6 grid gap-3 rounded-3xl bg-white p-4 shadow-sm sm:mt-8 sm:rounded-[2rem] sm:p-5">
             <Info label="VIN" value={car.vin || "Available on request"} />
             <Info label="Drivetrain" value={car.drivetrain} />
             <Info label="Body type" value={car.bodyType} />
@@ -119,7 +116,7 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
             <Info label="MPG / range" value={car.mpg} />
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6 sm:mt-8">
             <h2 className="text-xl font-black text-slate-950">Features</h2>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {car.features.map((feature) => (
@@ -148,13 +145,13 @@ export default async function CarDetailPage({ params }: { params: Promise<{ slug
 
 function Spec({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm sm:block">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700 sm:mb-3">
+    <div className="flex items-center gap-2 rounded-2xl bg-white p-3 shadow-sm sm:block sm:p-4">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700 sm:mb-3 sm:h-10 sm:w-10">
         {icon}
       </div>
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{label}</p>
-        <p className="mt-1 font-black text-slate-900">{value}</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 sm:text-xs sm:tracking-[0.16em]">{label}</p>
+        <p className="mt-0.5 text-sm font-black text-slate-900 sm:mt-1 sm:text-base">{value}</p>
       </div>
     </div>
   );

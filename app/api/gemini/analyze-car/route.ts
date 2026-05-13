@@ -45,6 +45,7 @@ Analyze the image and return only valid JSON with this shape:
   "trim": "SE",
   "price": 12000,
   "mileage": 90000,
+  "location": "Dallas, TX",
   "transmission": "Automatic",
   "drivetrain": "FWD",
   "fuelType": "Gasoline",
@@ -59,7 +60,7 @@ Analyze the image and return only valid JSON with this shape:
   "features": ["Backup camera", "Bluetooth"],
   "description": "Short honest seller note."
 }
-Never return null, unknown, or N/A. If an exact value cannot be inferred from the image, make a realistic assumption for a used-car listing. The only field that may be an empty string is vin; leave vin empty unless the exact VIN is visible. Price and mileage should be conservative estimates if unknown. Condition must be one of Excellent, Good, Fair, Project, Mechanic Special. Fuel type must be Gasoline, Hybrid, Electric, Diesel, or Plug-in Hybrid.`,
+Never return null, unknown, or N/A. Infer location as a US "City, ST" from visible license plates, dealer signs, storefronts, road signs, landmarks, or other image clues. If the exact location cannot be inferred, choose a realistic US market location that fits the visible environment, and vary it instead of always using the same city. The only field that may be an empty string is vin; leave vin empty unless the exact VIN is visible. Price and mileage should be conservative estimates if unknown. Condition must be one of Excellent, Good, Fair, Project, Mechanic Special. Fuel type must be Gasoline, Hybrid, Electric, Diesel, or Plug-in Hybrid.`,
     ]);
 
     const text = result.response.text();

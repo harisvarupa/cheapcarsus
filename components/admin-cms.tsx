@@ -200,7 +200,7 @@ export function AdminCMS({ initialAdminKey = "" }: { initialAdminKey?: string })
       trim: textOr(suggestion.trim, current.trim) || "Base",
       price: suggestion.price ? String(suggestion.price) : current.price || "12900",
       mileage: suggestion.mileage ? String(suggestion.mileage) : current.mileage || "95000",
-      location: current.location || "Los Angeles, CA",
+      location: textOr(suggestion.location, current.location) || assumedLocation(suggestion, current),
       transmission: textOr(suggestion.transmission, current.transmission) || "Automatic",
       drivetrain: textOr(suggestion.drivetrain, current.drivetrain) || "FWD",
       fuelType: textOr(suggestion.fuelType, current.fuelType) || "Gasoline",
@@ -930,6 +930,27 @@ function assumedMpg(suggestion: GeminiCarSuggestion, current: FormState) {
   if (bodyType === "SUV") return "22 city / 29 highway";
 
   return "28 city / 36 highway";
+}
+
+function assumedLocation(suggestion: GeminiCarSuggestion, current: FormState) {
+  const seed = `${suggestion.year || current.year}${suggestion.make || current.make}${suggestion.model || current.model}`;
+  const locations = [
+    "Phoenix, AZ",
+    "Dallas, TX",
+    "Houston, TX",
+    "Tampa, FL",
+    "Orlando, FL",
+    "Atlanta, GA",
+    "Charlotte, NC",
+    "Nashville, TN",
+    "Las Vegas, NV",
+    "Denver, CO",
+    "San Diego, CA",
+    "Sacramento, CA",
+  ];
+  const hash = Array.from(seed || "cheapcarsus").reduce((total, char) => total + char.charCodeAt(0), 0);
+
+  return locations[hash % locations.length];
 }
 
 async function readJsonResponse<T extends { error?: string }>(response: Response): Promise<T> {
