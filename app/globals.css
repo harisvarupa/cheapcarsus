@@ -92,3 +92,78 @@ textarea {
     transform: translateY(0);
   }
 }
+
+/* Uređiva polja direktno na tovarnom listu. */
+.tl-edit {
+  border-radius: 3px;
+  cursor: text;
+  transition: background 0.12s ease;
+}
+
+.tl-edit:hover {
+  background: rgba(249, 115, 22, 0.08);
+}
+
+.tl-edit:focus {
+  background: rgba(249, 115, 22, 0.12);
+  outline: none;
+}
+
+.tl-edit:empty::before {
+  content: attr(data-placeholder);
+  color: #c0c4cc;
+  pointer-events: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  .tl-edit:hover,
+  .tl-edit:focus {
+    background: transparent !important;
+  }
+
+  .tl-edit:empty::before {
+    content: "" !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  /* Sakrij okvir sajta i sve što nije dio dokumenta. */
+  body > header,
+  body > footer,
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Razmotaj omotače da tovarni list teče u normalnom toku i može preći na više stranica. */
+  main,
+  .print-unwrap {
+    display: contents !important;
+  }
+
+  #tovarni-print {
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Ponovi zaglavlje tabele na svakoj stranici i ne lomi redove. */
+  #tovarni-print thead {
+    display: table-header-group;
+  }
+
+  #tovarni-print tr {
+    page-break-inside: avoid;
+  }
+}
